@@ -7,7 +7,7 @@ type ClaudeMetadata struct {
 }
 
 type ClaudeMediaMessage struct {
-	Type        string               `json:"type"`
+	Type        string               `json:"type,omitempty"`
 	Text        *string              `json:"text,omitempty"`
 	Model       string               `json:"model,omitempty"`
 	Source      *ClaudeMessageSource `json:"source,omitempty"`
@@ -48,6 +48,11 @@ func (c *ClaudeMediaMessage) GetStringContent() string {
 		return content
 	}
 	return ""
+}
+
+func (c *ClaudeMediaMessage) GetJsonRowString() string {
+	jsonContent, _ := json.Marshal(c)
+	return string(jsonContent)
 }
 
 func (c *ClaudeMediaMessage) SetContent(content any) {
@@ -165,8 +170,8 @@ func (c *ClaudeRequest) ParseSystem() []ClaudeMediaMessage {
 }
 
 type ClaudeError struct {
-	Type    string `json:"type"`
-	Message string `json:"message"`
+	Type    string `json:"type,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type ClaudeErrorWithStatusCode struct {
@@ -183,7 +188,7 @@ type ClaudeResponse struct {
 	Completion   string               `json:"completion,omitempty"`
 	StopReason   string               `json:"stop_reason,omitempty"`
 	Model        string               `json:"model,omitempty"`
-	Error        ClaudeError          `json:"error,omitempty"`
+	Error        *ClaudeError         `json:"error,omitempty"`
 	Usage        *ClaudeUsage         `json:"usage,omitempty"`
 	Index        *int                 `json:"index,omitempty"`
 	ContentBlock *ClaudeMediaMessage  `json:"content_block,omitempty"`

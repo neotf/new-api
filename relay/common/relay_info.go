@@ -19,19 +19,29 @@ type ThinkingContentInfo struct {
 }
 
 const (
-	LastMessageTypeText  = "text"
-	LastMessageTypeTools = "tools"
+	LastMessageTypeNone     = "none"
+	LastMessageTypeText     = "text"
+	LastMessageTypeTools    = "tools"
+	LastMessageTypeThinking = "thinking"
 )
 
 type ClaudeConvertInfo struct {
 	LastMessagesType string
 	Index            int
+	Usage            *dto.Usage
+	FinishReason     string
+	Done             bool
 }
 
 const (
 	RelayFormatOpenAI = "openai"
 	RelayFormatClaude = "claude"
 )
+
+type RerankerInfo struct {
+	Documents       []any
+	ReturnDocuments bool
+}
 
 type RelayInfo struct {
 	ChannelType       int
@@ -71,6 +81,7 @@ type RelayInfo struct {
 	AudioUsage           bool
 	ReasoningEffort      string
 	ChannelSetting       map[string]interface{}
+	ParamOverride        map[string]interface{}
 	UserSetting          map[string]interface{}
 	UserEmail            string
 	UserQuota            int
@@ -78,6 +89,7 @@ type RelayInfo struct {
 	SendResponseCount    int
 	ThinkingContentInfo
 	ClaudeConvertInfo
+	*RerankerInfo
 }
 
 // 定义支持流式选项的通道类型
@@ -90,6 +102,7 @@ var streamSupportedChannels = map[int]bool{
 	common.ChannelTypeAzure:      true,
 	common.ChannelTypeVolcEngine: true,
 	common.ChannelTypeOllama:     true,
+	common.ChannelTypeXai:        true,
 }
 
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
@@ -106,7 +119,17 @@ func GenRelayInfoClaude(c *gin.Context) *RelayInfo {
 	info.RelayFormat = RelayFormatClaude
 	info.ShouldIncludeUsage = false
 	info.ClaudeConvertInfo = ClaudeConvertInfo{
-		LastMessagesType: LastMessageTypeText,
+		LastMessagesType: LastMessageTypeNone,
+	}
+	return info
+}
+
+func GenRelayInfoRerank(c *gin.Context, req *dto.RerankRequest) *RelayInfo {
+	info := GenRelayInfo(c)
+	info.RelayMode = relayconstant.RelayModeRerank
+	info.RerankerInfo = &RerankerInfo{
+		Documents:       req.Documents,
+		ReturnDocuments: req.GetReturnDocuments(),
 	}
 	return info
 }
@@ -115,6 +138,7 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 	channelType := c.GetInt("channel_type")
 	channelId := c.GetInt("channel_id")
 	channelSetting := c.GetStringMap("channel_setting")
+	paramOverride := c.GetStringMap("param_override")
 
 	tokenId := c.GetInt("token_id")
 	tokenKey := c.GetString("token_key")
@@ -152,6 +176,7 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 		ApiKey:         strings.TrimPrefix(c.Request.Header.Get("Authorization"), "Bearer "),
 		Organization:   c.GetString("channel_organization"),
 		ChannelSetting: channelSetting,
+		ParamOverride:  paramOverride,
 		RelayFormat:    RelayFormatOpenAI,
 		ThinkingContentInfo: ThinkingContentInfo{
 			IsFirstThinkingContent:  true,
