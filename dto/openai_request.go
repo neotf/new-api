@@ -113,6 +113,8 @@ type MediaContent struct {
 	ImageUrl   any    `json:"image_url,omitempty"`
 	InputAudio any    `json:"input_audio,omitempty"`
 	File       any    `json:"file,omitempty"`
+	// OpenRouter Params
+	CacheControl json.RawMessage `json:"cache_control,omitempty"`
 }
 
 func (m *MediaContent) GetImageMedia() *MessageImageUrl {
