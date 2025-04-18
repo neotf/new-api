@@ -19,20 +19,10 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 		Stream:      claudeRequest.Stream,
 	}
 
-	isOpenRouterClaude := info.ChannelType == common.ChannelTypeOpenRouter &&
-		strings.HasPrefix(info.UpstreamModelName, "anthropic/claude")
+	isOpenRouter := info.ChannelType == common.ChannelTypeOpenRouter
 
 	if claudeRequest.Thinking != nil {
-		var thinkingSuffix string
-		if isOpenRouterClaude {
-			thinkingSuffix = ":thinking"
-		} else {
-			thinkingSuffix = "-thinking"
-		}
-		if !strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {
-			openAIRequest.Model = openAIRequest.Model + thinkingSuffix
-		}
-		if isOpenRouterClaude {
+		if isOpenRouter {
 			reasoning := openrouter.RequestReasoning{
 				MaxTokens: claudeRequest.Thinking.BudgetTokens,
 			}
@@ -41,6 +31,12 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 				return nil, fmt.Errorf("failed to marshal reasoning: %w", err)
 			}
 			openAIRequest.Reasoning = reasoningJSON
+		} else {
+			thinkingSuffix := "-thinking"
+			if strings.HasSuffix(info.OriginModelName, thinkingSuffix) &&
+				!strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {
+				openAIRequest.Model = openAIRequest.Model + thinkingSuffix
+			}
 		}
 	}
 
@@ -84,6 +80,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 				openAIMessage := dto.Message{
 					Role: "system",
 				}
+				isOpenRouterClaude := isOpenRouter && strings.HasPrefix(info.UpstreamModelName, "anthropic/claude")
 				if isOpenRouterClaude {
 					systemMediaMessages := make([]dto.MediaContent, 0, len(systems))
 					for _, system := range systems {
