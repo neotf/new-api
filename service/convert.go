@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"one-api/common"
 	"one-api/dto"
+	"one-api/relay/channel/openrouter"
 	relaycommon "one-api/relay/common"
 	"strings"
 )
@@ -18,10 +19,28 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 		Stream:      claudeRequest.Stream,
 	}
 
+	isOpenRouterClaude := info.ChannelType == common.ChannelTypeOpenRouter &&
+		strings.HasPrefix(info.UpstreamModelName, "anthropic/claude")
+
 	if claudeRequest.Thinking != nil {
-		if strings.HasSuffix(info.OriginModelName, "-thinking") &&
-			!strings.HasSuffix(claudeRequest.Model, "-thinking") {
-			openAIRequest.Model = openAIRequest.Model + "-thinking"
+		var thinkingSuffix string
+		if isOpenRouterClaude {
+			thinkingSuffix = ":thinking"
+		} else {
+			thinkingSuffix = "-thinking"
+		}
+		if !strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {
+			openAIRequest.Model = openAIRequest.Model + thinkingSuffix
+		}
+		if isOpenRouterClaude {
+			reasoning := openrouter.RequestReasoning{
+				MaxTokens: claudeRequest.Thinking.BudgetTokens,
+			}
+			reasoningJSON, err := json.Marshal(reasoning)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal reasoning: %w", err)
+			}
+			openAIRequest.Reasoning = reasoningJSON
 		}
 	}
 
@@ -62,16 +81,29 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 		} else {
 			systems := claudeRequest.ParseSystem()
 			if len(systems) > 0 {
-				systemStr := ""
 				openAIMessage := dto.Message{
 					Role: "system",
 				}
-				for _, system := range systems {
-					if system.Text != nil {
-						systemStr += *system.Text
+				if isOpenRouterClaude {
+					systemMediaMessages := make([]dto.MediaContent, 0, len(systems))
+					for _, system := range systems {
+						message := dto.MediaContent{
+							Type:         "text",
+							Text:         system.GetText(),
+							CacheControl: system.CacheControl,
+						}
+						systemMediaMessages = append(systemMediaMessages, message)
 					}
+					openAIMessage.SetMediaContent(systemMediaMessages)
+				} else {
+					systemStr := ""
+					for _, system := range systems {
+						if system.Text != nil {
+							systemStr += *system.Text
+						}
+					}
+					openAIMessage.SetStringContent(systemStr)
 				}
-				openAIMessage.SetStringContent(systemStr)
 				openAIMessages = append(openAIMessages, openAIMessage)
 			}
 		}
@@ -97,8 +129,9 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 				switch mediaMsg.Type {
 				case "text":
 					message := dto.MediaContent{
-						Type: "text",
-						Text: mediaMsg.GetText(),
+						Type:         "text",
+						Text:         mediaMsg.GetText(),
+						CacheControl: mediaMsg.CacheControl,
 					}
 					mediaMessages = append(mediaMessages, message)
 				case "image":
