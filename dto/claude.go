@@ -71,8 +71,9 @@ func (c *ClaudeMediaMessage) ParseMediaContent() []ClaudeMediaMessage {
 
 type ClaudeMessageSource struct {
 	Type      string `json:"type"`
-	MediaType string `json:"media_type"`
-	Data      any    `json:"data"`
+	MediaType string `json:"media_type,omitempty"`
+	Data      any    `json:"data,omitempty"`
+	Url       string `json:"url,omitempty"`
 }
 
 type ClaudeMessage struct {
